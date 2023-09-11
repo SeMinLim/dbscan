@@ -24,7 +24,7 @@
 #define TO_DEGREE (180 / 3.1415926536)
 
 // ZFP
-#define BIT_BUDGET 13
+#define BIT_BUDGET 11
 // Exponent of single is 8 bit signed integer (-126 to +127)
 #define EXP_MAX ((1<<(8-1))-1)
 // Exponent of the minimum granularity value expressible via single
@@ -72,6 +72,7 @@ typedef struct Quadrant {
 class BitBuffer {
 public:
 	BitBuffer(int bytes);
+	~BitBuffer();
 	void EncodeBit(uint32_t src);
 	void EncodeBits(uint32_t src, int bits);
 	int BitCount() { return curbits; };
@@ -91,6 +92,9 @@ BitBuffer::BitBuffer(int bytes) {
 	this->bufferbytes = bytes;
 	this->curbits = 0;
 	this->decoff = 0;
+}
+BitBuffer::~BitBuffer() {
+	free(this->buffer);
 }
 void BitBuffer::EncodeBit(uint32_t src) {
 	int byteoff = (curbits/8);
@@ -219,9 +223,9 @@ void compress_1d(float origin[4], BitBuffer* decompressed, int bit_budget) {
 }
 
 // Decompressor
-void decompress_1d(uint8_t comp[9], BitBuffer* compressed, float* output, int bit_budget) {
+void decompress_1d(uint8_t comp[8], BitBuffer* compressed, float* output, int bit_budget) {
 	uint32_t e;
-	for ( int i = 0; i < 9; i ++ ) {
+	for ( int i = 0; i < 8; i ++ ) {
 		compressed->EncodeBits(comp[i], 8);
 	}
 	compressed->EncodeBits(0, 1);
@@ -270,7 +274,7 @@ void compressor(Point pointCore, Point pointTarget, uint8_t *compPoint) {
 	
 	compress_1d(originPoint, output, BIT_BUDGET);
 	
-	for ( int c = 0; c < 9; c ++ ) {
+	for ( int c = 0; c < 8; c ++ ) {
 		compPoint[c] = output->buffer[c];
 	}
 
@@ -278,7 +282,7 @@ void compressor(Point pointCore, Point pointTarget, uint8_t *compPoint) {
 }
 
 // Decompressor
-void decompressor(uint8_t compPoint[9], Point &pointCore, Point &pointTarget) {
+void decompressor(uint8_t compPoint[8], Point &pointCore, Point &pointTarget) {
 	float decompPoint[4];
 	BitBuffer* compressed = new BitBuffer(4*sizeof(float));
 	
@@ -700,7 +704,7 @@ void candidateListCalculator(std::vector<PointDBSCAN> &dataset, int index, std::
 	} else {
 		if ( root->diagonal <= EPSILON ) {
 			for ( int i = 0; i < (int)root->cities.size(); i ++ ) {
-				uint8_t compPoint[9] = {0,};
+				uint8_t compPoint[8] = {0,};
 				Point pointCore = dataset[index].point;
 				Point pointTarget = root->cities[i].point;
 				compressor(pointCore, pointTarget, &compPoint[0]);
@@ -713,7 +717,7 @@ void candidateListCalculator(std::vector<PointDBSCAN> &dataset, int index, std::
 				}
 			}
 		} else {
-			uint8_t compPoint[9] = {0,};
+			uint8_t compPoint[8] = {0,};
 			Point pointCore = dataset[index].point;
 			Point pointTarget = root->cities[0].point;
 			compressor(pointCore, pointTarget, &compPoint[0]);
@@ -909,8 +913,10 @@ int main() {
 	printf( "The Number of Quadrants                 : %ld\n", numQuadrants );
 	printf( "The Number of Haversine                 : %ld\n", numHaversine );
 	printf( "Max Cluster ID                          : %d\n", maxClusterID );
+	printf( "The Number of Accuracy                  : %f\n", accuracyCnt );
 	printf( "ZFP Accuracy [Bit Budget: %d]           : %.8f\n", BIT_BUDGET, (accuracyCnt/(double)numCities)*(double)100 );
 
-	delete(root);	
+	delete root;
+
 	return 0;
 }
