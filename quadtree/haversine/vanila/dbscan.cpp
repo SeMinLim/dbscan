@@ -637,7 +637,7 @@ void printResults(std::vector<PointDBSCAN> &dataset) {
 
 // Main
 int main() {
-	int numCities = 700968*2;
+	int numCities = 700968*1;
 
 	std::vector<PointDBSCAN> dataset;
 	Quadrant *root = new Quadrant;
@@ -699,6 +699,6 @@ int main() {
 	printf( "The Number of Haversine                 : %ld\n", numHaversine );
 	printf( "Max Cluster ID                          : %d\n", maxClusterID );
 
-	delete(root);	
+	delete root;	
 	return 0;
 }
