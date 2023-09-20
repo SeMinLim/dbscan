@@ -333,7 +333,7 @@ void getInfoQuad(Quadrant *root) {
 			numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
 			i++;
 		} else {
-			delete(root->child[i]);
+			delete root->child[i];
 			root->child.erase(root->child.begin() + i);
 		}
 	}
@@ -637,7 +637,7 @@ void printResults(std::vector<PointDBSCAN> &dataset) {
 
 // Main
 int main() {
-	int numCities = 700968*1;
+	int numCities = 700968*160;
 
 	std::vector<PointDBSCAN> dataset;
 	Quadrant *root = new Quadrant;
