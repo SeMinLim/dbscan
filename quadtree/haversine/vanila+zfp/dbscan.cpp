@@ -16,7 +16,7 @@
 #define FAILURE -3
 
 #define MINIMUM_POINTS 2
-#define EPSILON 5
+#define EPSILON 10
 
 // Haversine
 #define EARTH_RADIUS 6371
@@ -560,7 +560,7 @@ void getInfoQuad(Quadrant *root) {
 			numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
 			i++;
 		} else {
-			delete(root->child[i]);
+			delete root->child[i];
 			root->child.erase(root->child.begin() + i);
 		}
 	}
@@ -854,7 +854,7 @@ int dbscan(std::vector<PointDBSCAN> &dataset, Quadrant *root) {
 
 // Main
 int main() {
-	int numCities = 700968;
+	int numCities = 700968*1;
 
 	std::vector<PointDBSCAN> dataset;
 	Quadrant *root = new Quadrant;
@@ -917,6 +917,5 @@ int main() {
 	printf( "ZFP Accuracy [Bit Budget: %d]           : %.8f\n", BIT_BUDGET, (accuracyCnt/(double)numCities)*(double)100 );
 
 	delete root;
-
 	return 0;
 }
