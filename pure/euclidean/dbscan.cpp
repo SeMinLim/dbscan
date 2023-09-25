@@ -17,7 +17,7 @@
 #define MINIMUM_POINTS 2
 #define EPSILON 0.7
 
-#define NUMPOINTS (87621*1280) // (700968 * 160), 112154880
+#define NUMPOINTS (87621*1) // (700968 * 160), 112154880
 
 
 typedef struct Point {
@@ -26,12 +26,12 @@ typedef struct Point {
 }Point;
 
 
-Point m_points[NUMPOINTS];
-int clusterSeeds[NUMPOINTS];
-int clusterNeighbours[NUMPOINTS];
+Point m_points[NUMPOINTS+1];
+int clusterSeeds[NUMPOINTS+1];
+int clusterNeighbours[NUMPOINTS+1];
 
-uint16_t clusterSeedsSize = 0;
-uint16_t clusterNeighboursSize = 0;
+int clusterSeedsSize = 0;
+int clusterNeighboursSize = 0;
 
 uint64_t numEuclidean = 0;
 
