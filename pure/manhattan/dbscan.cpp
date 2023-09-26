@@ -15,9 +15,9 @@
 #define FAILURE -3
 
 #define MINIMUM_POINTS 2
-#define EPSILON 0.1
+#define EPSILON 0.7
 
-#define NUMPOINTS (87621*2) // (700968 * 160), 112154880
+#define NUMPOINTS (87621*1) // (700968 * 160), 112154880
 
 
 typedef struct Point {
