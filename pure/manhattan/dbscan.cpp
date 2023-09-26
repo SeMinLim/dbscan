@@ -33,6 +33,7 @@ int clusterNeighbours[NUMPOINTS+1];
 int clusterSeedsSize = 0;
 int clusterNeighboursSize = 0;
 uint64_t numManhattan = 0;
+double elapsedTimeManhattan = 0.00;
 
 
 // Elapsed time checker
@@ -91,8 +92,11 @@ void calculateClusterNeighbours(Point point) {
 }
 
 // Cluster expander
-int expandCluster(Point point, int clusterID) {    
+int expandCluster(Point point, int clusterID) {
+	double start1 = timeCheckerCPU();
 	calculateClusterSeeds(point);
+	double finish1 = timeCheckerCPU();
+	elapsedTimeManhattan = elapsedTimeManhattan + (finish1 - start1);
 	
 	if ( clusterSeedsSize < MINIMUM_POINTS ) {
 		point.clusterID = NOISE;
@@ -109,8 +113,11 @@ int expandCluster(Point point, int clusterID) {
 			     m_points[pointBorder].lon == point.lon ) {
 				continue;
 			} else {
+				double start2 = timeCheckerCPU();
 				calculateClusterNeighbours(m_points[pointBorder]);
-			
+				double finish2 = timeCheckerCPU();
+				elapsedTimeManhattan = elapsedTimeManhattan + (finish2 - start2);
+
 				if ( clusterNeighboursSize >= MINIMUM_POINTS ) {
 					for ( int j = 0; j < clusterNeighboursSize; j ++ ) {
 						int pointNeighbour = clusterNeighbours[j];
@@ -175,11 +182,12 @@ int main() {
 	printf( "\n" );
 
 	// result of DBSCAN algorithm
-	//printResults();    
-	printf( "Elapsed Time [DBSCAN] (CPU): %.8f\n", processTime );
-	printf( "The Number of Data Points  : %d\n", NUMPOINTS );
-	printf( "The Number of Manhattan    : %ld\n", numManhattan );
-	printf( "Max Cluster ID             : %d\n", maxClusterID );
+	//printResults();
+	printf( "Elapsed Time [Manhattan] (CPU): %.8f\n", elapsedTimeManhattan );
+	printf( "Elapsed Time [DBSCAN] (CPU)   : %.8f\n", processTime );
+	printf( "The Number of Data Points     : %d\n", NUMPOINTS );
+	printf( "The Number of Manhattan       : %ld\n", numManhattan );
+	printf( "Max Cluster ID                : %d\n", maxClusterID );
 
 	return 0;
 }
