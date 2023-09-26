@@ -37,6 +37,7 @@ int clusterNeighbours[NUMPOINTS+1];
 int clusterSeedsSize = 0;
 int clusterNeighboursSize = 0;
 uint64_t numHaversine = 0;
+double elapsedTimeHaversine = 0.00;
 
 
 // Elapsed time checker
@@ -102,8 +103,11 @@ void calculateClusterNeighbours(Point point) {
 }
 
 // Cluster expander
-int expandCluster(Point point, int clusterID) {    
+int expandCluster(Point point, int clusterID) {
+	double start1 = timeCheckerCPU();
 	calculateClusterSeeds(point);
+	double finish1 = timeCheckerCPU();
+	elapsedTimeHaversine = elapsedTimeHaversine + (finish1 - start1);
 	
 	if ( clusterSeedsSize < MINIMUM_POINTS ) {
 		point.clusterID = NOISE;
@@ -120,7 +124,10 @@ int expandCluster(Point point, int clusterID) {
 			     m_points[pointBorder].lon == point.lon ) {
 				continue;
 			} else {
+				double start2 = timeCheckerCPU();
 				calculateClusterNeighbours(m_points[pointBorder]);
+				double finish2 = timeCheckerCPU();
+				elapsedTimeHaversine = elapsedTimeHaversine + (finish2 - start2);
 			
 				if ( clusterNeighboursSize >= MINIMUM_POINTS ) {
 					for ( int j = 0; j < clusterNeighboursSize; j ++ ) {
@@ -186,11 +193,12 @@ int main() {
 	printf( "\n" );
 
 	// result of DBSCAN algorithm
-	//printResults();    
-	printf( "Elapsed Time [DBSCAN] (CPU): %.8f\n", processTime );
-	printf( "The Number of Data Points  : %d\n", NUMPOINTS );
-	printf( "The Number of Haversine    : %ld\n", numHaversine );
-	printf( "Max Cluster ID             : %d\n", maxClusterID );
+	//printResults();
+	printf( "Elapsed Time [Haversine] (CPU): %.8f\n", elapsedTimeHaversine );
+	printf( "Elapsed Time [DBSCAN] (CPU)   : %.8f\n", processTime );
+	printf( "The Number of Data Points     : %d\n", NUMPOINTS );
+	printf( "The Number of Haversine       : %ld\n", numHaversine );
+	printf( "Max Cluster ID                : %d\n", maxClusterID );
 
 	return 0;
 }
