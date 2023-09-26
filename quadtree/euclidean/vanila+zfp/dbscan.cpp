@@ -471,7 +471,7 @@ void initialize(Quadrant *root) {
 	// Center mass of dataset
 	findCenterMass(root);
 
-	// Diagonal haversine distance
+	// Diagonal euclidean distance
 	findDiagonal(root);
 
 	if ( root->diagonal <= EPSILON ) root->done = 1;
