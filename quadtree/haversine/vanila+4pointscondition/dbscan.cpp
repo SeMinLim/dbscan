@@ -18,6 +18,8 @@
 #define MINIMUM_POINTS 2
 #define EPSILON 5
 
+#define POINTSCONDITION 4
+
 // Haversine
 #define EARTH_RADIUS 6371
 #define TO_RADIAN (3.1415926536 / 180)
@@ -318,7 +320,7 @@ void divideQuad(Quadrant *root) {
 // Quadtree (Get the needed information for each quadrant)
 void getInfoQuad(Quadrant *root) {
 	for ( int i = 0; i < (int)root->child.size(); ) {
-		if ( root->child[i]->cities.size() > 4 ) {
+		if ( root->child[i]->cities.size() > POINTSCONDITION ) {
 			findCenterMass(root->child[i]);
 			findDiagonal(root->child[i]);
 			if ( root->child[i]->diagonal <= EPSILON ) {
@@ -326,13 +328,13 @@ void getInfoQuad(Quadrant *root) {
 				numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
 			} else root->child[i]->done = 0;
 			i++;
-		} else if ( root->child[i]->cities.size() == 4 ) {
+		} else if ( root->child[i]->cities.size() == POINTSCONDITION ) {
 			findCenterMass(root->child[i]);
 			findDiagonal(root->child[i]);
 			root->child[i]->done = 1;
 			numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
 			i++;
-		} else if ( root->child[i]->cities.size() < 4 ) {
+		} else if ( root->child[i]->cities.size() < POINTSCONDITION ) {
 			if ( root->child[i]->cities.size() == 0 ) {
 				delete root->child[i];
 				root->child.erase(root->child.begin() + i);
