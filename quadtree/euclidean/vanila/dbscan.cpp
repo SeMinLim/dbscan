@@ -611,7 +611,7 @@ void printResults(std::vector<PointDBSCAN> &dataset) {
 
 // Main
 int main() {
-	int numCities = 700968*160;
+	int numCities = 700968*2;
 
 	std::vector<PointDBSCAN> dataset;
 	Quadrant *root = new Quadrant;
@@ -653,7 +653,7 @@ int main() {
 	printf( "Quadtree-based DBSCAN Clustering for The World Cities Done!\n" );
 	printf( "\n" );
 	fflush( stdout );
-
+/*
 	// Save the result dataset as bin file
 	char resultDataset_filename[] = "../worldcities_result.bin";
 	printf( "Saving The Result Dataset Start!\n" );
@@ -661,7 +661,7 @@ int main() {
 	printf( "Saving The Result Dataset Done!\n" );
 	printf( "\n" );
 	fflush( stdout );
-	
+*/	
 	// Result of Quadtree-based DBSCAN algorithm
 	//printResults(dataset);
 	printf( "Elapsed Time [Step1] [Epsilon Box] (CPU): %.8f\n", processTimeStep1 );
