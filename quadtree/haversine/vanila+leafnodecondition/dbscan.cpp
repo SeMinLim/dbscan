@@ -18,7 +18,8 @@
 #define MINIMUM_POINTS 2
 #define EPSILON 5
 
-#define POINTSCONDITION 4
+#define POINTSCONDITION 20
+#define PCIECONDITION 4
 
 // Haversine
 #define EARTH_RADIUS 6371
@@ -29,6 +30,8 @@
 uint64_t numDataPoints = 0;
 uint64_t numQuadrants = 0;
 uint64_t numHaversine = 0;
+uint64_t numPointsCondition = 0;
+uint64_t numNormal = 0;
 
 
 typedef struct Point {
@@ -326,6 +329,10 @@ void getInfoQuad(Quadrant *root) {
 			if ( root->child[i]->diagonal <= EPSILON ) {
 				root->child[i]->done = 1;
 				numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
+				int quotient = (int)root->child[i]->cities.size() / PCIECONDITION;
+				int remainder = (int)root->child[i]->cities.size() % PCIECONDITION;
+				numPointsCondition = numPointsCondition + (quotient * PCIECONDITION);
+				numNormal = numNormal + remainder;
 			} else root->child[i]->done = 0;
 			i++;
 		} else if ( root->child[i]->cities.size() == POINTSCONDITION ) {
@@ -333,6 +340,10 @@ void getInfoQuad(Quadrant *root) {
 			findDiagonal(root->child[i]);
 			root->child[i]->done = 1;
 			numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
+			int quotient = (int)root->child[i]->cities.size() / PCIECONDITION;
+			int remainder = (int)root->child[i]->cities.size() % PCIECONDITION;
+			numPointsCondition = numPointsCondition + (quotient * PCIECONDITION);
+			numNormal = numNormal + remainder;
 			i++;
 		} else if ( root->child[i]->cities.size() < POINTSCONDITION ) {
 			if ( root->child[i]->cities.size() == 0 ) {
@@ -343,6 +354,10 @@ void getInfoQuad(Quadrant *root) {
 				findDiagonal(root->child[i]);
 				root->child[i]->done = 1;
 				numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
+				int quotient = (int)root->child[i]->cities.size() / PCIECONDITION;
+				int remainder = (int)root->child[i]->cities.size() % PCIECONDITION;
+				numPointsCondition = numPointsCondition + (quotient * PCIECONDITION);
+				numNormal = numNormal + remainder;
 				i++;
 			}
 		} 	
@@ -702,14 +717,16 @@ int main() {
 */	
 	// Result of Quadtree-based DBSCAN algorithm
 	//printResults(dataset);
-	printf( "Elapsed Time [Step1] [Epsilon Box] (CPU): %.8f\n", processTimeStep1 );
-	printf( "Elapsed Time [Step2] [Quadtree] (CPU)   : %.8f\n", processTimeStep2 );
-	printf( "Elapsed Time [Step3] [DBSCAN] (CPU)     : %.8f\n", processTimeStep3 );
-	printf( "The Number of Data Points               : %ld\n", numDataPoints );
-	printf( "The Maximum of Tree Level               : %d\n", level );
-	printf( "The Number of Quadrants                 : %ld\n", numQuadrants );
-	printf( "The Number of Haversine                 : %ld\n", numHaversine );
-	printf( "Max Cluster ID                          : %d\n", maxClusterID );
+	printf( "Elapsed Time [Step1] [Epsilon Box] (CPU)   : %.8f\n", processTimeStep1 );
+	printf( "Elapsed Time [Step2] [Quadtree] (CPU)      : %.8f\n", processTimeStep2 );
+	printf( "Elapsed Time [Step3] [DBSCAN] (CPU)        : %.8f\n", processTimeStep3 );
+	printf( "The Number of Data Points [Total]          : %ld\n", numDataPoints );
+	printf( "The Number of Data Points [Compress]       : %ld\n", numPointsCondition );
+	printf( "The Number of Data Points [Not Compress]   : %ld\n", numNormal );
+	printf( "The Maximum of Tree Level                  : %d\n", level );
+	printf( "The Number of Quadrants                    : %ld\n", numQuadrants );
+	printf( "The Number of Haversine                    : %ld\n", numHaversine );
+	printf( "Max Cluster ID                             : %d\n", maxClusterID );
 
 	delete root;	
 	return 0;
