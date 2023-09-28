@@ -16,8 +16,6 @@
 #define FAILURE -3
 
 #define MINIMUM_POINTS 2
-
-#define POINTSCONDITION 20
 #define PCIECONDITION 4
 
 // Haversine
@@ -320,9 +318,9 @@ void divideQuad(Quadrant *root) {
 }
 
 // Quadtree (Get the needed information for each quadrant)
-void getInfoQuad(Quadrant *root, int epsilon) {
+void getInfoQuad(Quadrant *root, int epsilon, int pointsCondition) {
 	for ( int i = 0; i < (int)root->child.size(); ) {
-		if ( root->child[i]->cities.size() > POINTSCONDITION ) {
+		if ( (int)root->child[i]->cities.size() > pointsCondition ) {
 			findCenterMass(root->child[i]);
 			findDiagonal(root->child[i]);
 			if ( root->child[i]->diagonal <= epsilon ) {
@@ -334,7 +332,7 @@ void getInfoQuad(Quadrant *root, int epsilon) {
 				numNormal = numNormal + remainder;
 			} else root->child[i]->done = 0;
 			i++;
-		} else if ( root->child[i]->cities.size() == POINTSCONDITION ) {
+		} else if ( (int)root->child[i]->cities.size() == pointsCondition ) {
 			findCenterMass(root->child[i]);
 			findDiagonal(root->child[i]);
 			root->child[i]->done = 1;
@@ -344,7 +342,7 @@ void getInfoQuad(Quadrant *root, int epsilon) {
 			numPointsCondition = numPointsCondition + (quotient * PCIECONDITION);
 			numNormal = numNormal + remainder;
 			i++;
-		} else if ( root->child[i]->cities.size() < POINTSCONDITION ) {
+		} else if ( (int)root->child[i]->cities.size() < pointsCondition ) {
 			if ( root->child[i]->cities.size() == 0 ) {
 				delete root->child[i];
 				root->child.erase(root->child.begin() + i);
@@ -370,7 +368,7 @@ void getInfoQuad(Quadrant *root, int epsilon) {
 }
 
 // Quadtree (Insert new child quadrant to parent quadrant)
-void insertQuad(Quadrant *root, int epsilon) {
+void insertQuad(Quadrant *root, int epsilon, int pointsCondition) {
 	if ( root->done == 0 ) {
 		// Generate child quadrants first
 		root->child.resize(4);
@@ -387,12 +385,12 @@ void insertQuad(Quadrant *root, int epsilon) {
 		findEdgePointsQuadrant(root);
 
 		// Center mass value and diagonal distance of each quadrant
-		getInfoQuad(root, epsilon);
+		getInfoQuad(root, epsilon, pointsCondition);
 	} else return;
 }
 
 // Quadtree (Main)
-int quadtree(Quadrant *root, int epsilon) {
+int quadtree(Quadrant *root, int epsilon, int pointsCondition) {
 	std::vector<Quadrant*> parentsCurr;
 	std::vector<Quadrant*> parentsNext;
 	parentsCurr.clear();
@@ -402,7 +400,7 @@ int quadtree(Quadrant *root, int epsilon) {
 	int level = 0;
 
 	// Root quadrant
-	insertQuad(root, epsilon);
+	insertQuad(root, epsilon, pointsCondition);
 	if ( (int)root->child.size() > 0 ) {
 		for ( int i = 0; i < (int)root->child.size(); i ++ ) {
 			if ( root->child[i]->done == 0 ) parentsCurr.push_back(root->child[i]);
@@ -415,7 +413,7 @@ int quadtree(Quadrant *root, int epsilon) {
 		parentsNext.clear();
 		parentsNext.shrink_to_fit();
 		for ( int i = 0; i < (int)parentsCurr.size(); i ++ ) {
-			insertQuad(parentsCurr[i], epsilon);
+			insertQuad(parentsCurr[i], epsilon, pointsCondition);
 			if ( (int)parentsCurr[i]->child.size() > 0 ) {
 				for ( int j = 0; j < (int)parentsCurr[i]->child.size(); j ++ ) {
 					if ( parentsCurr[i]->child[j]->done == 0 ) parentsNext.push_back(parentsCurr[i]->child[j]);
@@ -665,6 +663,7 @@ void printResults(std::vector<PointDBSCAN> &dataset) {
 int main(int argc, char **argv) {
 	int numCities = 700968*1;
 	int epsilon = atoi(argv[1]);
+	int pointsCondition = atoi(argv[2]);
 
 	std::vector<PointDBSCAN> dataset;
 	Quadrant *root = new Quadrant;
@@ -690,7 +689,7 @@ int main(int argc, char **argv) {
 	// Quadtree
 	printf( "Quadtree for The World Cities Start!\n" );
 	double processStartStep2 = timeCheckerCPU();
-	int level = quadtree(root, epsilon);
+	int level = quadtree(root, epsilon, pointsCondition);
 	double processFinishStep2 = timeCheckerCPU();
 	double processTimeStep2 = processFinishStep2 - processStartStep2;
 	printf( "Quadtree for The World Cities Done!\n" );
