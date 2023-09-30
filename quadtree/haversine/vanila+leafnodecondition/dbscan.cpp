@@ -661,7 +661,7 @@ void printResults(std::vector<PointDBSCAN> &dataset) {
 
 // Main
 int main(int argc, char **argv) {
-	int numCities = 700968*1;
+	int numCities = 700968*160;
 	int epsilon = atoi(argv[1]);
 	int pointsCondition = atoi(argv[2]);
 
@@ -716,16 +716,34 @@ int main(int argc, char **argv) {
 */	
 	// Result of Quadtree-based DBSCAN algorithm
 	//printResults(dataset);
+	double haversinePercent_1 = (double)numHaversine / (double)7677439641;
+	double haversinePercent_2 = haversinePercent_1 * (double)216.46002400;
+	double haversinePercent_3 = haversinePercent_2 / (double)processTimeStep3;
+	double haversinePercent_4 = haversinePercent_3 * (double)100.00;
+	float notCompressSize = (float)numNormal * 64.00;
+	float compressSize16b = (float)numPointsCondition * 32.00;
+	float compressSize12b = (float)numPointsCondition * 24.00;
+	float compressSize08b = (float)numPointsCondition * 16.00;
+	float dataSize16b = (((((notCompressSize + compressSize16b) / 8) / 1024) / 1024) / 1024);
+	float dataSize12b = (((((notCompressSize + compressSize12b) / 8) / 1024) / 1024) / 1024);
+	float dataSize08b = (((((notCompressSize + compressSize08b) / 8) / 1024) / 1024) / 1024);
+
 	printf( "Elapsed Time [Step1] [Epsilon Box] (CPU)   : %.8f\n", processTimeStep1 );
 	printf( "Elapsed Time [Step2] [Quadtree] (CPU)      : %.8f\n", processTimeStep2 );
 	printf( "Elapsed Time [Step3] [DBSCAN] (CPU)        : %.8f\n", processTimeStep3 );
 	printf( "The Number of Data Points [Total]          : %ld\n", numDataPoints );
 	printf( "The Number of Data Points [Compress]       : %ld\n", numPointsCondition );
 	printf( "The Number of Data Points [Not Compress]   : %ld\n", numNormal );
+	printf( "Data Structure Size [16 bits]              : %.8f\n", dataSize16b );
+	printf( "Data Structure Size [12 bits]              : %.8f\n", dataSize12b );
+	printf( "Data Structure Size [08 bits]              : %.8f\n", dataSize08b );
 	printf( "The Maximum of Tree Level                  : %d\n", level );
 	printf( "The Number of Quadrants                    : %ld\n", numQuadrants );
 	printf( "The Number of Haversine                    : %ld\n", numHaversine );
+	printf( "Haversine Percentage of Whole Elased Time  : %.8f\n", haversinePercent_4 );
 	printf( "Max Cluster ID                             : %d\n", maxClusterID );
+	printf( "Epsilon Value                              : %d\n", epsilon );
+	printf( "Elements in a Leaf Node                    : %d\n", pointsCondition );
 
 	delete root;	
 	return 0;
