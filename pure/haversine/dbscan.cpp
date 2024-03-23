@@ -17,7 +17,7 @@
 #define MINIMUM_POINTS 2
 #define EPSILON 5
 
-#define NUMPOINTS (87621*1) // (700968 * 160), 112154880
+#define NUMPOINTS 44691 //(87621*1) // (700968 * 160), 112154880
 
 // Haversine
 #define EARTH_RADIUS 6371
@@ -104,10 +104,10 @@ void calculateClusterNeighbours(Point point) {
 
 // Cluster expander
 int expandCluster(Point point, int clusterID) {
-	double start1 = timeCheckerCPU();
+	//double start1 = timeCheckerCPU();
 	calculateClusterSeeds(point);
-	double finish1 = timeCheckerCPU();
-	elapsedTimeHaversine = elapsedTimeHaversine + (finish1 - start1);
+	//double finish1 = timeCheckerCPU();
+	//elapsedTimeHaversine = elapsedTimeHaversine + (finish1 - start1);
 	
 	if ( clusterSeedsSize < MINIMUM_POINTS ) {
 		point.clusterID = NOISE;
@@ -124,10 +124,10 @@ int expandCluster(Point point, int clusterID) {
 			     m_points[pointBorder].lon == point.lon ) {
 				continue;
 			} else {
-				double start2 = timeCheckerCPU();
+				//double start2 = timeCheckerCPU();
 				calculateClusterNeighbours(m_points[pointBorder]);
-				double finish2 = timeCheckerCPU();
-				elapsedTimeHaversine = elapsedTimeHaversine + (finish2 - start2);
+				//double finish2 = timeCheckerCPU();
+				//elapsedTimeHaversine = elapsedTimeHaversine + (finish2 - start2);
 			
 				if ( clusterNeighboursSize >= MINIMUM_POINTS ) {
 					for ( int j = 0; j < clusterNeighboursSize; j ++ ) {
@@ -178,11 +178,11 @@ void printResults() {
 }
 
 int main() {
-	char benchmark_filename[] = "../../worldcities_augmented.bin";
+	char benchmark_filename[] = "../../worldcities.bin";
 
 	// read point data
 	readBenchmarkData(benchmark_filename);
-
+	
 	// main loop
 	printf( "Pure DBSCAN Clustering for The World Cities Start!\n" );
 	double processStart = timeCheckerCPU();
@@ -194,7 +194,7 @@ int main() {
 
 	// result of DBSCAN algorithm
 	//printResults();
-	printf( "Elapsed Time [Haversine] (CPU): %.8f\n", elapsedTimeHaversine );
+	//printf( "Elapsed Time [Haversine] (CPU): %.8f\n", elapsedTimeHaversine );
 	printf( "Elapsed Time [DBSCAN] (CPU)   : %.8f\n", processTime );
 	printf( "The Number of Data Points     : %d\n", NUMPOINTS );
 	printf( "The Number of Haversine       : %ld\n", numHaversine );
