@@ -29,15 +29,16 @@ uint64_t numQuadrants = 0;
 uint64_t numHaversine = 0;
 uint64_t numPointsCondition = 0;
 uint64_t numNormal = 0;
+uint64_t numComplete = 0;
 
 
 typedef struct Point {
-	float lat, lon;
+	double lat, lon;
 }Point;
 
 typedef struct PointQuadTree {
 	Point point;
-	int datasetID;
+	size_t datasetID;
 }PointQuadTree;
 
 typedef struct PointDBSCAN {
@@ -46,7 +47,7 @@ typedef struct PointDBSCAN {
 	Point northWestern;
 	Point southEastern;
 	Point southWestern;
-	int clusterID;
+	size_t clusterID;
 }PointDBSCAN;
 
 typedef struct Quadrant {
@@ -57,9 +58,13 @@ typedef struct Quadrant {
 	Point southEastern;
 	Point southWestern;
 	Point center;
-	float diagonal;
+	double diagonal;
 	bool done;
+	bool same;
 }Quadrant;
+
+
+std::vector<PointDBSCAN> dataset;
 
 
 // Elapsed time checker
@@ -71,47 +76,48 @@ static inline double timeCheckerCPU(void) {
 
 // Function for reading benchmark file
 // Quadrant
-void readBenchmarkDataQuadTree(Quadrant *root, char* filename, int length) {
+void readBenchmarkDataQuadTree(Quadrant *root, char* filename, size_t length) {
 	FILE *f_data = fopen(filename, "rb");
 	if( f_data == NULL ) {
 		printf( "File not found: %s\n", filename );
 		exit(1);
 	}
 
-	for ( int i = 0; i < length; i ++ ) {
+	for ( size_t i = 0; i < length; i ++ ) {
 		PointQuadTree temp;
-		int datasetID = i;
+		size_t datasetID = i;
 		float lat = 0.00;
 		float lon = 0.00;
 		fread(&lat, sizeof(float), 1, f_data);
 		fread(&lon, sizeof(float), 1, f_data);
-		temp.point.lat = lat;
-		temp.point.lon = lon;
+		temp.point.lat = (double)lat;
+		temp.point.lon = (double)lon;
 		temp.datasetID = datasetID;
 		root->cities.push_back(temp);
 	}
 
 	root->done = 0;
+	root->same = 0;
 	
 	fclose(f_data);
 }
 // Data points
-void readBenchmarkDataDBSCAN(std::vector<PointDBSCAN> &dataset, char* filename, int length) {
+void readBenchmarkDataDBSCAN(std::vector<PointDBSCAN> &dataset, char* filename, size_t length) {
 	FILE *f_data = fopen(filename, "rb");
 	if( f_data == NULL ) {
 		printf( "File not found: %s\n", filename );
 		exit(1);
 	}
 
-	for ( int i = 0; i < length; i ++ ) {
+	for ( size_t i = 0; i < length; i ++ ) {
 		PointDBSCAN temp;
-		int clusterID = UNCLASSIFIED;
+		size_t clusterID = UNCLASSIFIED;
 		float lat = 0.00;
 		float lon = 0.00;
 		fread(&lat, sizeof(float), 1, f_data);
 		fread(&lon, sizeof(float), 1, f_data);
-		temp.point.lat = lat;
-		temp.point.lon = lon;
+		temp.point.lat = (double)lat;
+		temp.point.lon = (double)lon;
 		temp.clusterID = clusterID;
 		dataset.push_back(temp);
 	}
@@ -120,53 +126,61 @@ void readBenchmarkDataDBSCAN(std::vector<PointDBSCAN> &dataset, char* filename, 
 }
 
 // Function for writing benchmark file
-void writeBenchmarkDataDBSCAN(std::vector<PointDBSCAN> &dataset, char* filename, int length) {
+void writeBenchmarkDataDBSCAN(std::vector<PointDBSCAN> &dataset, char* filename, size_t length) {
 	FILE* f_data = fopen(filename, "wb");
 
-	for ( int i = 0; i < length; i ++ ) {
+	for ( size_t i = 0; i < length; i ++ ) {
 		fwrite(&dataset[i].point.lat, sizeof(float), 1, f_data);
 		fwrite(&dataset[i].point.lon, sizeof(float), 1, f_data);
-		fwrite(&dataset[i].clusterID, sizeof(int), 1, f_data);
+		fwrite(&dataset[i].clusterID, sizeof(size_t), 1, f_data);
 	}
 
 	fclose(f_data);
 }
 
 // Haversine
-float haversine(const Point pointCore, const Point pointTarget) {
+double haversine(const Point pointCore, const Point pointTarget, double startTime) {
 	numHaversine++;
+	if ( (numHaversine % 7677439641) == 0 ) {
+		double middleTime = timeCheckerCPU();
+		double time = middleTime - startTime;
+		printf( "Haversine    : %ld\n", numHaversine );
+		printf( "Elapsed Time : %.8f\n", time );
+		printf( "Complete Node: %ld\n", numComplete );
+		fflush( stdout );
+	}
 	// Distance between latitudes and longitudes
-	float dlat = (pointTarget.lat-pointCore.lat)*TO_RADIAN;
-	float dlon = (pointTarget.lon-pointCore.lon)*TO_RADIAN;
+	double dlat = (pointTarget.lat-pointCore.lat)*TO_RADIAN;
+	double dlon = (pointTarget.lon-pointCore.lon)*TO_RADIAN;
 
 	// Convert to radians
-	float rad_lat_core = pointCore.lat*TO_RADIAN;
-	float rad_lat_target = pointTarget.lat*TO_RADIAN;
+	double rad_lat_core = pointCore.lat*TO_RADIAN;
+	double rad_lat_target = pointTarget.lat*TO_RADIAN;
 
 	// Apply formula
-	float f = pow(sin(dlat/2),2) + pow(sin(dlon/2),2) * cos(rad_lat_core) * cos(rad_lat_target);
+	double f = pow(sin(dlat/2),2) + pow(sin(dlon/2),2) * cos(rad_lat_core) * cos(rad_lat_target);
 	return asin(sqrt(f)) * 2 * EARTH_RADIUS;
 }
 
 // Inverse haversine for latitude
-float inverseHaversineLat(const Point pointCore, int epsilon) {
-	float dlat_1km = 0.008992;
+float inverseHaversineLat(const Point pointCore, size_t epsilon) {
+	double dlat_1km = 0.008992;
 	return dlat_1km * epsilon;
 }
 
 // Inverse haversine for longitude
-float inverseHaversineLon(const Point pointCore, int epsilon) {
-	float sinFunc = sin((epsilon * TO_RADIAN) / (2 * EARTH_RADIUS * TO_RADIAN));
-	float powFunc = pow(sinFunc, 2);
-	float secLat = 1 / cos(pointCore.lat * TO_RADIAN);
+float inverseHaversineLon(const Point pointCore, size_t epsilon) {
+	double sinFunc = sin((epsilon * TO_RADIAN) / (2 * EARTH_RADIUS * TO_RADIAN));
+	double powFunc = pow(sinFunc, 2);
+	double secLat = 1 / cos(pointCore.lat * TO_RADIAN);
 	return (2 * asin(sqrt(powFunc * secLat * secLat))) * TO_DEGREE;
 }
 
 // Function for four edge points of square
-void findEdgePointsEpsilonBox(std::vector<PointDBSCAN> &dataset, int epsilon) {
-	for ( int i = 0; i < (int)dataset.size(); i ++ ) {
-		float dlat = inverseHaversineLat(dataset[i].point, epsilon);
-		float dlon = inverseHaversineLon(dataset[i].point, epsilon);
+void findEdgePointsEpsilonBox(std::vector<PointDBSCAN> &dataset, size_t epsilon) {
+	for ( size_t i = 0; i < dataset.size(); i ++ ) {
+		double dlat = inverseHaversineLat(dataset[i].point, epsilon);
+		double dlon = inverseHaversineLon(dataset[i].point, epsilon);
 		dataset[i].northEastern.lat = dataset[i].point.lat + dlat;
 		dataset[i].northEastern.lon = dataset[i].point.lon + dlon;
 		dataset[i].northWestern.lat = dataset[i].point.lat - dlat;
@@ -223,25 +237,26 @@ void findEdgePointsQuadrant(Quadrant *root) {
 
 // Function for finding center mass value
 void findCenterMass(Quadrant *root) {
-	float totalX = 0.00;
-	float totalY = 0.00;
-	for ( int i = 0; i < (int)root->cities.size(); i ++ ) {
+	double totalX = 0.00;
+	double totalY = 0.00;
+	for ( size_t i = 0; i < root->cities.size(); i ++ ) {
 		totalX = totalX + root->cities[i].point.lat;
 		totalY = totalY + root->cities[i].point.lon;
 	}
-	root->center.lat = totalX / (float)root->cities.size();
-	root->center.lon = totalY / (float)root->cities.size();
+	root->center.lat = totalX / (double)root->cities.size();
+	root->center.lon = totalY / (double)root->cities.size();
 }
 
 // Function for finding a length of diagonal haversine distance
 void findDiagonal(Quadrant *root) {
-	root->diagonal = haversine(root->northEastern, root->southWestern);
+	double useless = 0.00;
+	root->diagonal = haversine(root->northEastern, root->southWestern, useless);
 }
 
 // Function for initialization
-void initialize(Quadrant *root, int epsilon) {
+void initialize(Quadrant *root, size_t epsilon) {
 	// Highest and lowest
-	for ( int i = 0; i < (int)root->cities.size(); i ++ ) {
+	for ( size_t i = 0; i < root->cities.size(); i ++ ) {
 		if ( i == 0 ) {
 			root->southWestern.lat = root->cities[i].point.lat;
 			root->southWestern.lon = root->cities[i].point.lon;
@@ -280,7 +295,7 @@ void initialize(Quadrant *root, int epsilon) {
 
 // Quadtree (Divide parent quadrant to 4 childrent quadrant)
 void divideQuad(Quadrant *root) {
-	for ( int i = 0; i < (int)root->cities.size(); i ++ ) {
+	for ( size_t i = 0; i < root->cities.size(); i ++ ) {
 		// First child quadrant
 		if ( (root->cities[i].point.lat < root->center.lat) && 
 		     (root->cities[i].point.lon < root->center.lon) ) {
@@ -318,31 +333,54 @@ void divideQuad(Quadrant *root) {
 }
 
 // Quadtree (Get the needed information for each quadrant)
-void getInfoQuad(Quadrant *root, int epsilon, int pointsCondition) {
-	for ( int i = 0; i < (int)root->child.size(); ) {
-		if ( (int)root->child[i]->cities.size() > pointsCondition ) {
+void getInfoQuad(Quadrant *root, size_t epsilon, size_t pointsCondition, int level) {
+	for ( size_t i = 0; i < root->child.size(); ) {
+		if ( root->child[i]->cities.size() > (size_t)pointsCondition ) {
 			findCenterMass(root->child[i]);
 			findDiagonal(root->child[i]);
 			if ( root->child[i]->diagonal <= epsilon ) {
 				root->child[i]->done = 1;
-				numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
-				int quotient = (int)root->child[i]->cities.size() / PCIECONDITION;
-				int remainder = (int)root->child[i]->cities.size() % PCIECONDITION;
+				numDataPoints = numDataPoints + (uint64_t)root->child[i]->cities.size();
+				uint64_t quotient = (uint64_t)root->child[i]->cities.size() / PCIECONDITION;
+				uint64_t remainder = (uint64_t)root->child[i]->cities.size() % PCIECONDITION;
 				numPointsCondition = numPointsCondition + (quotient * PCIECONDITION);
 				numNormal = numNormal + remainder;
-			} else root->child[i]->done = 0;
+			} else {
+				size_t same = 1;
+				for ( size_t j = 1; j < root->child[i]->cities.size(); j ++ ) {
+					if ( (root->child[i]->cities[0].point.lat == root->child[i]->cities[j].point.lat) &&
+					     (root->child[i]->cities[0].point.lon == root->child[i]->cities[j].point.lon) ) same++;
+				}
+				if ( same == root->child[i]->cities.size() ) {
+					root->child[i]->done = 1;
+					root->child[i]->same = 1;
+					numDataPoints = numDataPoints + (uint64_t)root->child[i]->cities.size();
+					uint64_t quotient = (uint64_t)root->child[i]->cities.size() / PCIECONDITION;
+					uint64_t remainder = (uint64_t)root->child[i]->cities.size() % PCIECONDITION;
+					numPointsCondition = numPointsCondition + (quotient * PCIECONDITION);
+					numNormal = numNormal + remainder;
+				} else root->child[i]->done = 0;
+			}
 			i++;
-		} else if ( (int)root->child[i]->cities.size() == pointsCondition ) {
+		} else if ( root->child[i]->cities.size() == (size_t)pointsCondition ) {
 			findCenterMass(root->child[i]);
 			findDiagonal(root->child[i]);
 			root->child[i]->done = 1;
-			numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
-			int quotient = (int)root->child[i]->cities.size() / PCIECONDITION;
-			int remainder = (int)root->child[i]->cities.size() % PCIECONDITION;
+			size_t same = 1;
+			for ( size_t j = 1; j < root->child[i]->cities.size(); j ++ ) {
+				if ( (root->child[i]->cities[0].point.lat == root->child[i]->cities[j].point.lat) &&
+				     (root->child[i]->cities[0].point.lon == root->child[i]->cities[j].point.lon) ) same++;
+			}
+			if ( same == root->child[i]->cities.size() ) {
+				root->child[i]->same = 1;
+			}
+			numDataPoints = numDataPoints + (uint64_t)root->child[i]->cities.size();
+			uint64_t quotient = (uint64_t)root->child[i]->cities.size() / PCIECONDITION;
+			uint64_t remainder = (uint64_t)root->child[i]->cities.size() % PCIECONDITION;
 			numPointsCondition = numPointsCondition + (quotient * PCIECONDITION);
 			numNormal = numNormal + remainder;
 			i++;
-		} else if ( (int)root->child[i]->cities.size() < pointsCondition ) {
+		} else if ( root->child[i]->cities.size() < (size_t)pointsCondition ) {
 			if ( root->child[i]->cities.size() == 0 ) {
 				delete root->child[i];
 				root->child.erase(root->child.begin() + i);
@@ -350,9 +388,17 @@ void getInfoQuad(Quadrant *root, int epsilon, int pointsCondition) {
 				findCenterMass(root->child[i]);
 				findDiagonal(root->child[i]);
 				root->child[i]->done = 1;
-				numDataPoints = numDataPoints + (int)root->child[i]->cities.size();
-				int quotient = (int)root->child[i]->cities.size() / PCIECONDITION;
-				int remainder = (int)root->child[i]->cities.size() % PCIECONDITION;
+				size_t same = 1;
+				for ( size_t j = 1; j < root->child[i]->cities.size(); j ++ ) {
+					if ( (root->child[i]->cities[0].point.lat == root->child[i]->cities[j].point.lat) &&
+					     (root->child[i]->cities[0].point.lon == root->child[i]->cities[j].point.lon) ) same++;
+				}
+				if ( same == root->child[i]->cities.size() ) {
+					root->child[i]->same = 1;
+				}
+				numDataPoints = numDataPoints + (uint64_t)root->child[i]->cities.size();
+				uint64_t quotient = (uint64_t)root->child[i]->cities.size() / PCIECONDITION;
+				uint64_t remainder = (uint64_t)root->child[i]->cities.size() % PCIECONDITION;
 				numPointsCondition = numPointsCondition + (quotient * PCIECONDITION);
 				numNormal = numNormal + remainder;
 				i++;
@@ -361,21 +407,22 @@ void getInfoQuad(Quadrant *root, int epsilon, int pointsCondition) {
 	}
 	
 	// Count the total number of quadrants & delete parent's data
-	if ( (int)root->child.size() > 0 ) {
-		numQuadrants = numQuadrants + (int)root->child.size();
+	if ( root->child.size() > 0 ) {
+		numQuadrants = numQuadrants + (uint64_t)root->child.size();
 		std::vector<PointQuadTree>().swap(root->cities);
 	}
 }
 
 // Quadtree (Insert new child quadrant to parent quadrant)
-void insertQuad(Quadrant *root, int epsilon, int pointsCondition) {
+void insertQuad(Quadrant *root, size_t epsilon, size_t pointsCondition, int level) {
 	if ( root->done == 0 ) {
 		// Generate child quadrants first
 		root->child.resize(4);
-		for ( int i = 0; i < 4; i ++ ) {
+		for ( size_t i = 0; i < 4; i ++ ) {
 			root->child[i] = new Quadrant;
 			root->child[i]->diagonal = 0.00; 
 			root->child[i]->done = 0;
+			root->child[i]->same = 0;
 		}
 
 		// Divide
@@ -385,12 +432,12 @@ void insertQuad(Quadrant *root, int epsilon, int pointsCondition) {
 		findEdgePointsQuadrant(root);
 
 		// Center mass value and diagonal distance of each quadrant
-		getInfoQuad(root, epsilon, pointsCondition);
+		getInfoQuad(root, epsilon, pointsCondition, level);
 	} else return;
 }
 
 // Quadtree (Main)
-int quadtree(Quadrant *root, int epsilon, int pointsCondition) {
+int quadtree(Quadrant *root, size_t epsilon, size_t pointsCondition) {
 	std::vector<Quadrant*> parentsCurr;
 	std::vector<Quadrant*> parentsNext;
 	parentsCurr.clear();
@@ -400,34 +447,38 @@ int quadtree(Quadrant *root, int epsilon, int pointsCondition) {
 	int level = 0;
 
 	// Root quadrant
-	insertQuad(root, epsilon, pointsCondition);
-	if ( (int)root->child.size() > 0 ) {
-		for ( int i = 0; i < (int)root->child.size(); i ++ ) {
+	insertQuad(root, epsilon, pointsCondition, level);
+	if ( root->child.size() > 0 ) {
+		for ( size_t i = 0; i < root->child.size(); i ++ ) {
 			if ( root->child[i]->done == 0 ) parentsCurr.push_back(root->child[i]);
 		}
 	}
 	level++;
+	printf( "DBSCAN Level: %d\n", level );
+	fflush( stdout );
 
 	// Iteration until meeting the terminate conditions
 	while (1) {
 		parentsNext.clear();
 		parentsNext.shrink_to_fit();
-		for ( int i = 0; i < (int)parentsCurr.size(); i ++ ) {
-			insertQuad(parentsCurr[i], epsilon, pointsCondition);
-			if ( (int)parentsCurr[i]->child.size() > 0 ) {
-				for ( int j = 0; j < (int)parentsCurr[i]->child.size(); j ++ ) {
+		for ( size_t i = 0; i < parentsCurr.size(); i ++ ) {
+			insertQuad(parentsCurr[i], epsilon, pointsCondition, level);
+			if ( parentsCurr[i]->child.size() > 0 ) {
+				for ( size_t j = 0; j < parentsCurr[i]->child.size(); j ++ ) {
 					if ( parentsCurr[i]->child[j]->done == 0 ) parentsNext.push_back(parentsCurr[i]->child[j]);
 				}
 			}
 		}
 		parentsCurr.clear();
 		parentsCurr.shrink_to_fit();
-		if ( (int)parentsNext.size() > 0 ) {
-			for ( int i = 0; i < (int)parentsNext.size(); i ++ ) {
+		if ( parentsNext.size() > 0 ) {
+			for ( size_t i = 0; i < parentsNext.size(); i ++ ) {
 				parentsCurr.push_back(parentsNext[i]);
 			}
 		} else break;
 		level++;
+		printf( "DBSCAN Level: %d\n", level );
+		fflush( stdout );
 	}
 	
 	return level;
@@ -435,7 +486,7 @@ int quadtree(Quadrant *root, int epsilon, int pointsCondition) {
 
 // DBSCAN (Comparer between epsilon box and quadrant)
 // Check the epsilon box is in a quadrant first
-int compareEBinQ(std::vector<PointDBSCAN> &dataset, int index, Quadrant *root) {
+size_t compareEBinQ(std::vector<PointDBSCAN> &dataset, size_t index, Quadrant *root) {
 	int numPoints = 0;
 	if ( dataset[index].northEastern.lat >= root->southWestern.lat && 
 	     dataset[index].northEastern.lat <= root->northEastern.lat &&
@@ -456,7 +507,7 @@ int compareEBinQ(std::vector<PointDBSCAN> &dataset, int index, Quadrant *root) {
 	return numPoints;
 }
 // Check the quadrant is in epsilon box
-int compareQinEB(std::vector<PointDBSCAN> &dataset, int index, Quadrant *root) {
+size_t compareQinEB(std::vector<PointDBSCAN> &dataset, size_t index, Quadrant *root) {
 	int numPoints = 0;
 	if ( root->northEastern.lat >= dataset[index].southWestern.lat && 
 	     root->northEastern.lat <= dataset[index].northEastern.lat &&
@@ -477,7 +528,7 @@ int compareQinEB(std::vector<PointDBSCAN> &dataset, int index, Quadrant *root) {
 	return numPoints;
 }
 // Check epsilon box and quadrant are overlapped each other
-int compareOverlap(std::vector<PointDBSCAN> &dataset, int index, Quadrant *root) {
+size_t compareOverlap(std::vector<PointDBSCAN> &dataset, size_t index, Quadrant *root) {
 	int numPoints = 0;
 	if ( dataset[index].northEastern.lat >= root->southWestern.lat &&
 	     dataset[index].northEastern.lat <= root->northEastern.lat &&
@@ -491,25 +542,33 @@ int compareOverlap(std::vector<PointDBSCAN> &dataset, int index, Quadrant *root)
 }
 
 // DBSCAN (Do haversine calculation based on candidate list)
-void candidateListCalculator(std::vector<PointDBSCAN> &dataset, int index, std::vector<int> &borders, Quadrant *root, int epsilon) {
+void candidateListCalculator(std::vector<PointDBSCAN> &dataset, size_t index, std::vector<size_t> &borders, Quadrant *root, size_t epsilon, double startTime) {
 	if ( root->done == 0 ) {
-		for ( int i = 0; i < (int)root->child.size(); i ++ ) {
-			candidateListCalculator(dataset, index, borders, root->child[i], epsilon);
+		for ( size_t i = 0; i < root->child.size(); i ++ ) {
+			candidateListCalculator(dataset, index, borders, root->child[i], epsilon, startTime);
 		}
 	} else {
 		if ( root->diagonal <= epsilon ) {
-			for ( int i = 0; i < (int)root->cities.size(); i ++ ) {
-				if ( haversine(dataset[index].point, root->cities[i].point) <= epsilon ) {
-					for ( int j = 0; j < (int)root->cities.size(); j ++ ) {
+			for ( size_t i = 0; i < root->cities.size(); i ++ ) {
+				if ( haversine(dataset[index].point, root->cities[i].point, startTime) <= epsilon ) {
+					for ( size_t j = 0; j < root->cities.size(); j ++ ) {
 						borders.push_back(root->cities[j].datasetID);
 					}
 					break;
 				}
 			}
 		} else {
-			for ( int i = 0; i < (int)root->cities.size(); i ++ ) {
-				if ( haversine(dataset[index].point, root->cities[i].point) <= epsilon ) {
-					borders.push_back(root->cities[i].datasetID);
+			if ( root->same == 1 ) {
+				if ( haversine(dataset[index].point, root->cities[0].point, startTime) <= epsilon ) {
+					for ( size_t j = 0; j < root->cities.size(); j ++ ) {
+						borders.push_back(root->cities[j].datasetID);
+					}
+				}
+			} else {
+				for ( size_t i = 0; i < root->cities.size(); i ++ ) {
+					if ( haversine(dataset[index].point, root->cities[i].point, startTime) <= epsilon ) {
+						borders.push_back(root->cities[i].datasetID);
+					}
 				}
 			}
 		}
@@ -517,46 +576,46 @@ void candidateListCalculator(std::vector<PointDBSCAN> &dataset, int index, std::
 }
 
 // DBSCAN (Do make candidate list in case of quadrant is in epsilon box)
-void findQuadrantsQinEB(std::vector<PointDBSCAN> &dataset, int index, std::vector<int> &borders, Quadrant *root, int epsilon) {
-	int resultQinEB = compareQinEB(dataset, index, root);
+void findQuadrantsQinEB(std::vector<PointDBSCAN> &dataset, size_t index, std::vector<size_t> &borders, Quadrant *root, size_t epsilon, double startTime) {
+	size_t resultQinEB = compareQinEB(dataset, index, root);
 	if ( resultQinEB == 1 || resultQinEB == 2 || resultQinEB == 3 ) {
 		if ( root->done == 0 ) {
-			for ( int i = 0; i < (int)root->child.size(); i ++ ) {
-				findQuadrantsQinEB(dataset, index, borders, root->child[i], epsilon);
+			for ( size_t i = 0; i < root->child.size(); i ++ ) {
+				findQuadrantsQinEB(dataset, index, borders, root->child[i], epsilon, startTime);
 			}
 		} else {
-			candidateListCalculator(dataset, index, borders, root, epsilon);
+			candidateListCalculator(dataset, index, borders, root, epsilon, startTime);
 		}
 	} else if ( resultQinEB == 4 ) {
-		candidateListCalculator(dataset, index, borders, root, epsilon);
+		candidateListCalculator(dataset, index, borders, root, epsilon, startTime);
 	}
 }
 
 // DBSCAN (Do make candidate list in case of epsilon box is in quadrant)
-void findQuadrantsEBinQ(std::vector<PointDBSCAN> &dataset, int index, std::vector<int> &borders, Quadrant *root, int epsilon) {
-	int resultEBinQ = compareEBinQ(dataset, index, root);
+void findQuadrantsEBinQ(std::vector<PointDBSCAN> &dataset, size_t index, std::vector<size_t> &borders, Quadrant *root, size_t epsilon, double startTime) {
+	size_t resultEBinQ = compareEBinQ(dataset, index, root);
 	if ( resultEBinQ != 0 ) {
 		if ( root->done == 1 ) {
-			candidateListCalculator(dataset, index, borders, root, epsilon);
+			candidateListCalculator(dataset, index, borders, root, epsilon, startTime);
 		} else {
-			int resultQinEB = compareQinEB(dataset, index, root);
+			size_t resultQinEB = compareQinEB(dataset, index, root);
 			if ( resultQinEB == 0 ) {
-				for ( int i = 0; i < (int)root->child.size(); i ++ ) {
-					findQuadrantsEBinQ(dataset, index, borders, root->child[i], epsilon);
+				for ( size_t i = 0; i < root->child.size(); i ++ ) {
+					findQuadrantsEBinQ(dataset, index, borders, root->child[i], epsilon, startTime);
 				}
-			} else findQuadrantsQinEB(dataset, index, borders, root, epsilon);
+			} else findQuadrantsQinEB(dataset, index, borders, root, epsilon, startTime);
 		}
 	} else {
-		int resultQinEB = compareQinEB(dataset, index, root);
+		size_t resultQinEB = compareQinEB(dataset, index, root);
 		if ( resultQinEB != 0 ) {
-			findQuadrantsQinEB(dataset, index, borders, root, epsilon);
+			findQuadrantsQinEB(dataset, index, borders, root, epsilon, startTime);
 		} else {
-			int resultPart3 = compareOverlap(dataset, index, root);
+			size_t resultPart3 = compareOverlap(dataset, index, root);
 			if ( resultPart3 != 0 ) {
-				if ( root->done == 1 ) candidateListCalculator(dataset, index, borders, root, epsilon);
+				if ( root->done == 1 ) candidateListCalculator(dataset, index, borders, root, epsilon, startTime);
 				else {
-					for ( int i = 0; i < (int)root->child.size(); i ++ ) {
-						findQuadrantsEBinQ(dataset, index, borders, root->child[i], epsilon);
+					for ( size_t i = 0; i < root->child.size(); i ++ ) {
+						findQuadrantsEBinQ(dataset, index, borders, root->child[i], epsilon, startTime);
 					}
 				}
 			}
@@ -565,71 +624,74 @@ void findQuadrantsEBinQ(std::vector<PointDBSCAN> &dataset, int index, std::vecto
 }
 
 // DBSCAN (Border Point Finder of Core Point)
-void borderFinderCore(std::vector<PointDBSCAN> &dataset, int corePoint, std::vector<int> &bordersCore, Quadrant *root, int epsilon) {
+void borderFinderCore(std::vector<PointDBSCAN> &dataset, size_t corePoint, std::vector<size_t> &bordersCore, Quadrant *root, size_t epsilon, double startTime) {
 	bordersCore.clear();
 	bordersCore.shrink_to_fit();
-	findQuadrantsEBinQ(dataset, corePoint, bordersCore, root, epsilon);
+	findQuadrantsEBinQ(dataset, corePoint, bordersCore, root, epsilon, startTime);
 }
 
 // DBSCAN (Border Point Finder of Border Point)
-void borderFinderBorder(std::vector<PointDBSCAN> &dataset, int borderPoint, std::vector<int> &bordersBorder, Quadrant *root, int epsilon) {
+void borderFinderBorder(std::vector<PointDBSCAN> &dataset, size_t borderPoint, std::vector<size_t> &bordersBorder, Quadrant *root, size_t epsilon, double startTime) {
 	bordersBorder.clear();
 	bordersBorder.shrink_to_fit();
-	findQuadrantsEBinQ(dataset, borderPoint, bordersBorder, root, epsilon);
+	findQuadrantsEBinQ(dataset, borderPoint, bordersBorder, root, epsilon, startTime);
 }
 
 // DBSCAN (Cluster Expander)
-int clusterExpander(std::vector<PointDBSCAN> &dataset, int index, int clusterID, Quadrant *root, int epsilon) {
-	std::vector<int> bordersCore;
-	std::vector<int> bordersBorder;
-	borderFinderCore(dataset, index, bordersCore, root, epsilon);
+int clusterExpander(std::vector<PointDBSCAN> &dataset, size_t index, size_t clusterID, Quadrant *root, size_t epsilon, double startTime) {
+	std::vector<size_t> bordersCore;
+	std::vector<size_t> bordersBorder;
+	borderFinderCore(dataset, index, bordersCore, root, epsilon, startTime);
 
 	if ( bordersCore.size() < MINIMUM_POINTS ) {
 		dataset[index].clusterID = NOISE;
-		std::vector<int>().swap(bordersCore);
+		std::vector<size_t>().swap(bordersCore);
 		return FAILURE;
 	} else {
-		for ( int i = 0; i < (int)bordersCore.size(); i ++ ) {
-			int borderPoint = bordersCore[i];
+		for ( size_t i = 0; i < bordersCore.size(); i ++ ) {
+			size_t borderPoint = bordersCore[i];
 			dataset[borderPoint].clusterID = clusterID;
+			numComplete++;
 		}
 
-		for ( int i = 0; i < (int)bordersCore.size(); i ++ ) {
-			int borderPoint = bordersCore[i];
+		for ( size_t i = 0; i < bordersCore.size(); i ++ ) {
+			size_t borderPoint = bordersCore[i];
 			if ( (dataset[borderPoint].point.lat == dataset[index].point.lat) && 
 			     (dataset[borderPoint].point.lon == dataset[index].point.lon) ) {
 				continue;
 			} else {
-				borderFinderBorder(dataset, borderPoint, bordersBorder, root, epsilon);
+				borderFinderBorder(dataset, borderPoint, bordersBorder, root, epsilon, startTime);
 
 				if ( bordersBorder.size() >= MINIMUM_POINTS ) {
-					for ( int j = 0; j < (int)bordersBorder.size(); j ++ ) {
-						int neighbourPoint = bordersBorder[j];
-						if ( dataset[neighbourPoint].clusterID == UNCLASSIFIED ||
-						     dataset[neighbourPoint].clusterID == NOISE ) {
-							if ( dataset[neighbourPoint].clusterID == UNCLASSIFIED ) {
+					for ( size_t j = 0; j < bordersBorder.size(); j ++ ) {
+						size_t neighbourPoint = bordersBorder[j];
+						if ( dataset[neighbourPoint].clusterID == (size_t)UNCLASSIFIED ||
+						     dataset[neighbourPoint].clusterID == (size_t)NOISE ) {
+							if ( dataset[neighbourPoint].clusterID == (size_t)UNCLASSIFIED ) {
 								bordersCore.push_back(neighbourPoint);
 							}
 							dataset[neighbourPoint].clusterID = clusterID;
+							numComplete++;
 						}
 					}
 				}
 			}
 		}
-		std::vector<int>().swap(bordersCore);
-		std::vector<int>().swap(bordersBorder);
+		std::vector<size_t>().swap(bordersCore);
+		std::vector<size_t>().swap(bordersBorder);
 		return SUCCESS;
 	}
 }
 
 // DBSCAN (Main)
-int dbscan(std::vector<PointDBSCAN> &dataset, Quadrant *root, int epsilon) {
-	int clusterID = 1;
-	for ( int i = 0; i < (int)dataset.size(); i ++ ) {
-		if ( dataset[i].clusterID == UNCLASSIFIED ) {
-			if ( clusterExpander(dataset, i, clusterID, root, epsilon) != FAILURE ) {
+int dbscan(std::vector<PointDBSCAN> &dataset, Quadrant *root, size_t epsilon, double startTime) {
+	size_t clusterID = 1;
+	for ( size_t i = 0; i < dataset.size(); i ++ ) {
+		if ( dataset[i].clusterID == (size_t)UNCLASSIFIED ) {
+			if ( clusterExpander(dataset, i, clusterID, root, epsilon, startTime) != FAILURE ) {
 				clusterID += 1;
-				printf( "Generating cluster %d done!\n", clusterID-1 );
+				printf( "Generating cluster %lu done!\n", clusterID-1 );
+				fflush( stdout );
 			}
 		}
 	}
@@ -653,7 +715,7 @@ void printResults(std::vector<PointDBSCAN> &dataset) {
 	}
 
 	for ( int i = 0; i < (int)dataset.size(); i ++ ) {
-		printf("%f, %f: %d\n", dataset[i].point.lat, dataset[i].point.lon, dataset[i].clusterID);
+		printf("%f, %f: %lu\n", dataset[i].point.lat, dataset[i].point.lon, dataset[i].clusterID);
 	}
 
 	printf( "--------------------------\n" );
@@ -661,23 +723,32 @@ void printResults(std::vector<PointDBSCAN> &dataset) {
 
 // Main
 int main(int argc, char **argv) {
-	int numCities = 700968*160;
-	int epsilon = atoi(argv[1]);
-	int pointsCondition = atoi(argv[2]);
+	size_t numCities = 44691;//700968*160;
+	//size_t numCities = 2899550649;
+	size_t epsilon = atoi(argv[1]);
+	size_t pointsCondition = atoi(argv[2]);
+	printf( "Epsilon Value                              : %lu\n", epsilon );
+	fflush( stdout );
+	printf( "Elements in a Leaf Node                    : %lu\n", pointsCondition );
+	fflush( stdout );
 
-	std::vector<PointDBSCAN> dataset;
 	Quadrant *root = new Quadrant;
 
 	// Read point data
-	char benchmark_filename[] = "../../../worldcities_augmented.bin";
+	char benchmark_filename[] = "../../../worldcities.bin";
 	readBenchmarkDataDBSCAN(dataset, benchmark_filename, numCities);
+	printf( "Read File Done![First]\n" );
+	fflush( stdout );
 	readBenchmarkDataQuadTree(root, benchmark_filename, numCities);
+	printf( "Read File Done![Second]\n" );
+	fflush( stdout );
 
 	// Initialize
 	initialize(root, epsilon);
 
 	// Get four edge points of epsilon box of each data point
 	printf( "Finding Four Edge Points of Epsilon Box of The World Cities Start!\n" );
+	fflush( stdout );
 	double processStartStep1 = timeCheckerCPU();
 	findEdgePointsEpsilonBox(dataset, epsilon);
 	double processFinishStep1 = timeCheckerCPU();
@@ -685,9 +756,12 @@ int main(int argc, char **argv) {
 	printf( "Finding Four Edge Points of Epsilon Box of The World Cities Done!\n" );
 	printf( "\n" );
 	fflush( stdout );
+	printf( "Elapsed Time [Step1] [Epsilon Box] (CPU)   : %.8f\n", processTimeStep1 );
+	fflush( stdout );
 
 	// Quadtree
 	printf( "Quadtree for The World Cities Start!\n" );
+	fflush( stdout );
 	double processStartStep2 = timeCheckerCPU();
 	int level = quadtree(root, epsilon, pointsCondition);
 	double processFinishStep2 = timeCheckerCPU();
@@ -695,11 +769,28 @@ int main(int argc, char **argv) {
 	printf( "Quadtree for The World Cities Done!\n" );
 	printf( "\n" );
 	fflush( stdout );
+	float notCompressSize = (float)numNormal * 64.00;
+	float compressSize16b = (float)numPointsCondition * 32.00;
+	float compressSize12b = (float)numPointsCondition * 24.00;
+	float compressSize08b = (float)numPointsCondition * 16.00;
+	float dataSize16b = (((((notCompressSize + compressSize16b) / 8) / 1024) / 1024) / 1024);
+	float dataSize12b = (((((notCompressSize + compressSize12b) / 8) / 1024) / 1024) / 1024);
+	float dataSize08b = (((((notCompressSize + compressSize08b) / 8) / 1024) / 1024) / 1024);
+	printf( "Elapsed Time [Step2] [Quadtree] (CPU)      : %.8f\n", processTimeStep2 );
+	printf( "The Number of Data Points [Total]          : %ld\n", numDataPoints );
+	printf( "The Number of Data Points [Compress]       : %ld\n", numPointsCondition );
+	printf( "The Number of Data Points [Not Compress]   : %ld\n", numNormal );
+	printf( "Data Structure Size [16 bits]              : %.8f\n", dataSize16b );
+	printf( "Data Structure Size [12 bits]              : %.8f\n", dataSize12b );
+	printf( "Data Structure Size [08 bits]              : %.8f\n", dataSize08b );
+	printf( "The Maximum of Tree Level                  : %d\n", level );
+	printf( "The Number of Quadrants                    : %ld\n", numQuadrants );
+
 
 	// DBSCAN
 	printf( "Quadtree-based DBSCAN Clustering for The World Cities Start!\n" );
 	double processStartStep3 = timeCheckerCPU();
-	int maxClusterID = dbscan(dataset, root, epsilon);
+	int maxClusterID = dbscan(dataset, root, epsilon, processStartStep3);
 	double processFinishStep3 = timeCheckerCPU();
 	double processTimeStep3 = processFinishStep3 - processStartStep3;
 	printf( "Quadtree-based DBSCAN Clustering for The World Cities Done!\n" );
@@ -720,30 +811,12 @@ int main(int argc, char **argv) {
 	double haversinePercent_2 = haversinePercent_1 * (double)216.46002400;
 	double haversinePercent_3 = haversinePercent_2 / (double)processTimeStep3;
 	double haversinePercent_4 = haversinePercent_3 * (double)100.00;
-	float notCompressSize = (float)numNormal * 64.00;
-	float compressSize16b = (float)numPointsCondition * 32.00;
-	float compressSize12b = (float)numPointsCondition * 24.00;
-	float compressSize08b = (float)numPointsCondition * 16.00;
-	float dataSize16b = (((((notCompressSize + compressSize16b) / 8) / 1024) / 1024) / 1024);
-	float dataSize12b = (((((notCompressSize + compressSize12b) / 8) / 1024) / 1024) / 1024);
-	float dataSize08b = (((((notCompressSize + compressSize08b) / 8) / 1024) / 1024) / 1024);
+	double haversinePercent_5 = haversinePercent_4 + (double)31.00;
 
-	printf( "Elapsed Time [Step1] [Epsilon Box] (CPU)   : %.8f\n", processTimeStep1 );
-	printf( "Elapsed Time [Step2] [Quadtree] (CPU)      : %.8f\n", processTimeStep2 );
 	printf( "Elapsed Time [Step3] [DBSCAN] (CPU)        : %.8f\n", processTimeStep3 );
-	printf( "The Number of Data Points [Total]          : %ld\n", numDataPoints );
-	printf( "The Number of Data Points [Compress]       : %ld\n", numPointsCondition );
-	printf( "The Number of Data Points [Not Compress]   : %ld\n", numNormal );
-	printf( "Data Structure Size [16 bits]              : %.8f\n", dataSize16b );
-	printf( "Data Structure Size [12 bits]              : %.8f\n", dataSize12b );
-	printf( "Data Structure Size [08 bits]              : %.8f\n", dataSize08b );
-	printf( "The Maximum of Tree Level                  : %d\n", level );
-	printf( "The Number of Quadrants                    : %ld\n", numQuadrants );
 	printf( "The Number of Haversine                    : %ld\n", numHaversine );
-	printf( "Haversine Percentage of Whole Elased Time  : %.8f\n", haversinePercent_4 );
+	printf( "Haversine Percentage of Whole Elased Time  : %.8f\n", haversinePercent_5 );
 	printf( "Max Cluster ID                             : %d\n", maxClusterID );
-	printf( "Epsilon Value                              : %d\n", epsilon );
-	printf( "Elements in a Leaf Node                    : %d\n", pointsCondition );
 
 	delete root;	
 	return 0;
